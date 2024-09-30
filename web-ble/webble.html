@@ -1,0 +1,131 @@
+<!--
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp32-web-bluetooth/
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aircon Automated Control Configurations</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="">
+</head>
+<body>
+  <h1>Aircon Automated Control Configurations</h1>
+  <p><textarea placeholder="Enter identification id of controller"></textarea></p>
+  <button id="connectBleButton">Connect to BLE Device</button>
+  <p>BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
+  <h2>Configurations</h2>
+  <p>
+    <select id="config">
+      <option value="Samsung">Samsung</option>
+      <option value="Sony">Sony</option>
+      <option value="LG">LG</option>
+    </select>
+  </p>
+  <button id="submit">Submit Configurations</button>
+</body>
+<script>
+    // DOM Elements
+    const connectButton = document.getElementById('connectBleButton');
+    const bleStateContainer = document.getElementById('bleState');
+    const submit = document.getElementById('submit');
+    const config = document.getElementById('config');
+
+    //Define BLE Device Specs
+    var deviceName ='ESP32';
+    var bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    var configCharacteristic= '19b10001-e8f2-537e-4f6c-d104768a1214';
+
+
+    //Global Variables to Handle Bluetooth
+    var bleServer;
+    var configService;
+    var configCharacteristicFound;
+
+    // Connect Button (search for BLE Devices only if BLE is available)
+    connectButton.addEventListener('click', (event) => {
+        if (isWebBluetoothEnabled()){
+            connectToDevice();
+        }
+    });
+
+    submit.addEventListener('click', () => {
+      alert("submitted");
+      writeConfig();
+    })
+
+    // Check if BLE is available in your Browser
+    function isWebBluetoothEnabled() {
+        if (!navigator.bluetooth) {
+            console.log("Web Bluetooth API is not available in this browser!");
+            bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
+            return false
+        }
+        console.log('Web Bluetooth API supported in this browser.');
+        return true
+    }
+
+    // Connect to BLE Device and Enable Notifications
+    function connectToDevice(){
+        console.log('Initializing Bluetooth...');
+        navigator.bluetooth.requestDevice({
+            filters: [{name: deviceName}],
+            optionalServices: [bleService]
+        })
+        .then(device => {
+            console.log('Device Selected:', device.name);
+            bleStateContainer.innerHTML = 'Connected to device ' + device.name;
+            bleStateContainer.style.color = "#24af37";
+            device.addEventListener('gattservicedisconnected', onDisconnected);
+            return device.gatt.connect();
+        })
+        .then(gattServer =>{
+            bleServer = gattServer;
+            console.log("Connected to GATT Server");
+            return bleServer.getPrimaryService(bleService);
+        })
+        .then(service => {
+            configService = service;
+            console.log("Service discovered:", service.uuid);
+            return service.getCharacteristic(configCharacteristic);
+        })
+        .then(characteristic => {
+            console.log("Characteristic discovered:", characteristic.uuid);
+            configCharacteristicFound = characteristic;
+        })
+        .catch(error => {
+            console.log('Error: ', error);
+        })
+    }
+
+    function onDisconnected(){
+        //console.log('Device Disconnected:', event.target.device.name);
+        bleStateContainer.innerHTML = "Device disconnected";
+        bleStateContainer.style.color = "#d13a30";
+
+        //connectToDevice();
+    }
+
+    function writeConfig(){
+        if (bleServer && bleServer.connected) {
+            configService.getCharacteristic(configCharacteristic)
+            .then(characteristic => {
+              alert(config.value);
+              onDisconnected();
+              return characteristic.writeValue(new TextEncoder().encode(config.value));
+            }
+          )
+
+        } else {
+            console.error ("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+    }
+
+</script>
+
+</html>
